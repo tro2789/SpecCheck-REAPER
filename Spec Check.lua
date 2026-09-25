@@ -1,6 +1,9 @@
 -- @description Spec Check: measure a mix against a delivery spec
 -- @author Trevor O'Hare Productions
--- @version 0.1.0
+-- @version 0.2.0
+-- @changelog
+--   Window colors follow the active REAPER theme (and theme switches)
+--   Labels in a regular font, measured values in monospace
 -- @provides [nomain] speccheck_core.lua
 -- @about
 --   Renders the master mix (entire project, time selection or a region) to
@@ -20,10 +23,155 @@ package.path = reaper.ImGui_GetBuiltinPath() .. "/?.lua"
 local ImGui = require "imgui" "0.9.3"
 
 local EXT = "SpecCheck"
-local COL_PASS, COL_FAIL, COL_DIM = 0x5FBF77FF, 0xE0605EFF, 0x8F8F8FFF
-local BTN_PASS, BTN_FAIL = 0x2E6B3CFF, 0x8A2F2EFF
 
 local ctx = ImGui.CreateContext("Spec Check")
+-- Labels in a regular face, measured values in monospace.
+local FONT_UI = ImGui.CreateFont("sans-serif", 14)
+-- The generic "monospace" family resolves to a thin face on Windows.
+local os_name = reaper.GetOS()
+local MONO = "monospace"
+if os_name:match("^Win") then MONO = "Consolas"
+elseif os_name:match("^OSX") or os_name:match("^macOS") then MONO = "Menlo" end
+local FONT_NUM = ImGui.CreateFont(MONO, 14)
+ImGui.Attach(ctx, FONT_UI)
+ImGui.Attach(ctx, FONT_NUM)
+
+---------------------------------------------------------------- theme
+
+-- Colors follow the active REAPER theme so the window looks built in and
+-- tracks theme switches. A few theme colors seed everything else; text is
+-- pushed until it meets a contrast floor so unusual themes stay readable.
+local COL_PASS, COL_FAIL, COL_DIM, BTN_PASS, BTN_FAIL, COL_ON_BTN
+local THEME_COLS = {}
+local themeAt = -1
+local WHITE, BLACK = { 255, 255, 255 }, { 0, 0, 0 }
+
+local STYLE_VARS = {
+  { ImGui.StyleVar_WindowRounding, 0 },
+  { ImGui.StyleVar_ChildRounding, 2 },
+  { ImGui.StyleVar_FrameRounding, 2 },
+  { ImGui.StyleVar_PopupRounding, 2 },
+  { ImGui.StyleVar_GrabRounding, 2 },
+  { ImGui.StyleVar_ScrollbarRounding, 2 },
+  { ImGui.StyleVar_WindowBorderSize, 1 },
+  { ImGui.StyleVar_WindowPadding, 10, 10 },
+  { ImGui.StyleVar_FramePadding, 6, 4 },
+  { ImGui.StyleVar_ItemSpacing, 6, 6 },
+  { ImGui.StyleVar_CellPadding, 6, 3 },
+}
+
+local function theme_rgb(key, fallback)
+  local c = reaper.GetThemeColor(key, 0)
+  if not c or c == -1 then return fallback end
+  local r, g, b = reaper.ColorFromNative(c)
+  return { r, g, b }
+end
+
+local function mix(c, t, f)
+  return { c[1] + (t[1] - c[1]) * f, c[2] + (t[2] - c[2]) * f, c[3] + (t[3] - c[3]) * f }
+end
+
+local function rgba(c, a)
+  local function b(v) return math.max(0, math.min(255, math.floor(v + 0.5))) end
+  return (b(c[1]) << 24) | (b(c[2]) << 16) | (b(c[3]) << 8) | b((a or 1) * 255)
+end
+
+-- WCAG relative luminance and contrast ratio.
+local function luminance(c)
+  local function ch(v)
+    v = v / 255
+    return v <= 0.03928 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4
+  end
+  return 0.2126 * ch(c[1]) + 0.7152 * ch(c[2]) + 0.0722 * ch(c[3])
+end
+local function contrast(a, b)
+  local la, lb = luminance(a), luminance(b)
+  if la < lb then la, lb = lb, la end
+  return (la + 0.05) / (lb + 0.05)
+end
+local function readable(c, bg, ratio, toward)
+  for _ = 1, 20 do
+    if contrast(c, bg) >= ratio then break end
+    c = mix(c, toward, 0.1)
+  end
+  return c
+end
+
+local function refresh_theme(force)
+  local now = reaper.time_precise()
+  if not force and now - themeAt < 1 then return end
+  themeAt = now
+  local bg = theme_rgb("col_main_bg2", { 51, 51, 51 })
+  local dark = luminance(bg) < 0.18
+  local up, down = dark and WHITE or BLACK, dark and BLACK or WHITE
+  local textSrc = theme_rgb("col_main_text2", dark and { 200, 200, 200 } or { 40, 40, 40 })
+  local text = readable(textSrc, bg, 7, up)
+  local dim = readable(textSrc, bg, 3.5, up)
+  local accent = readable(theme_rgb("col_toolbar_text_on", theme_rgb("genlist_selbg", { 26, 188, 152 })), bg, 3, up)
+  local line = mix(bg, up, 0.14)
+
+  if dark then
+    COL_PASS, COL_FAIL = 0x5FBF77FF, 0xE0605EFF
+    BTN_PASS, BTN_FAIL = 0x2E6B3CFF, 0x8A2F2EFF
+  else
+    COL_PASS, COL_FAIL = 0x2E7D45FF, 0xB3312FFF
+    BTN_PASS, BTN_FAIL = 0x3E8E54FF, 0xC0443FFF
+  end
+  COL_ON_BTN = 0xFFFFFFFF
+  COL_DIM = rgba(dim)
+
+  THEME_COLS = {
+    { ImGui.Col_WindowBg, rgba(bg) },
+    { ImGui.Col_ChildBg, rgba(mix(bg, down, 0.12)) },
+    { ImGui.Col_PopupBg, rgba(mix(bg, up, 0.04)) },
+    { ImGui.Col_Text, rgba(text) },
+    { ImGui.Col_TextDisabled, rgba(dim) },
+    { ImGui.Col_Border, rgba(line) },
+    { ImGui.Col_Separator, rgba(line) },
+    { ImGui.Col_SeparatorHovered, rgba(accent, 0.6) },
+    { ImGui.Col_SeparatorActive, rgba(accent) },
+    { ImGui.Col_FrameBg, rgba(mix(bg, down, 0.22)) },
+    { ImGui.Col_FrameBgHovered, rgba(mix(bg, down, 0.30)) },
+    { ImGui.Col_FrameBgActive, rgba(mix(bg, down, 0.36)) },
+    { ImGui.Col_TitleBg, rgba(mix(bg, down, 0.25)) },
+    { ImGui.Col_TitleBgActive, rgba(mix(bg, down, 0.15)) },
+    { ImGui.Col_TitleBgCollapsed, rgba(mix(bg, down, 0.25)) },
+    { ImGui.Col_Button, rgba(mix(bg, up, 0.10)) },
+    { ImGui.Col_ButtonHovered, rgba(mix(bg, up, 0.17)) },
+    { ImGui.Col_ButtonActive, rgba(mix(bg, accent, 0.45)) },
+    { ImGui.Col_Header, rgba(accent, 0.30) },
+    { ImGui.Col_HeaderHovered, rgba(accent, 0.45) },
+    { ImGui.Col_HeaderActive, rgba(accent, 0.60) },
+    { ImGui.Col_CheckMark, rgba(accent) },
+    { ImGui.Col_PlotHistogram, rgba(accent) },
+    { ImGui.Col_TableHeaderBg, rgba(mix(bg, up, 0.06)) },
+    { ImGui.Col_TableRowBg, rgba(bg, 0) },
+    { ImGui.Col_TableRowBgAlt, rgba(mix(bg, up, 0.03)) },
+    { ImGui.Col_TableBorderLight, rgba(mix(bg, up, 0.08)) },
+    { ImGui.Col_TableBorderStrong, rgba(line) },
+    { ImGui.Col_ScrollbarBg, rgba(bg, 0) },
+    { ImGui.Col_ScrollbarGrab, rgba(mix(bg, up, 0.20)) },
+    { ImGui.Col_ScrollbarGrabHovered, rgba(mix(bg, up, 0.28)) },
+    { ImGui.Col_ScrollbarGrabActive, rgba(accent) },
+    { ImGui.Col_ResizeGrip, rgba(accent, 0.20) },
+    { ImGui.Col_ResizeGripHovered, rgba(accent, 0.50) },
+    { ImGui.Col_ResizeGripActive, rgba(accent, 0.80) },
+    { ImGui.Col_TextSelectedBg, rgba(accent, 0.35) },
+    { ImGui.Col_NavHighlight, rgba(accent) },
+    { ImGui.Col_ModalWindowDimBg, rgba(BLACK, 0.35) },
+    { ImGui.Col_DockingEmptyBg, rgba(bg) },
+  }
+end
+
+local function push_theme()
+  for _, c in ipairs(THEME_COLS) do ImGui.PushStyleColor(ctx, c[1], c[2]) end
+  for _, v in ipairs(STYLE_VARS) do ImGui.PushStyleVar(ctx, v[1], v[2], v[3]) end
+end
+
+local function pop_theme()
+  ImGui.PopStyleVar(ctx, #STYLE_VARS)
+  ImGui.PopStyleColor(ctx, #THEME_COLS)
+end
 
 ---------------------------------------------------------------- state
 
@@ -342,9 +490,10 @@ local function draw_verdict(res, sum)
     ImGui.PushStyleColor(ctx, ImGui.Col_Button, col)
     ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, col)
     ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, col)
+    ImGui.PushStyleColor(ctx, ImGui.Col_Text, COL_ON_BTN)
   end
   ImGui.Button(ctx, text, -1, 30)
-  if col then ImGui.PopStyleColor(ctx, 3) end
+  if col then ImGui.PopStyleColor(ctx, 4) end
 end
 
 local function value_extra(res, key)
@@ -355,7 +504,8 @@ end
 
 local function draw_table(res, rows)
   local flags = ImGui.TableFlags_RowBg | ImGui.TableFlags_BordersInnerH | ImGui.TableFlags_SizingStretchProp
-  if not ImGui.BeginTable(ctx, "metrics", 3, flags) then return end
+  if not ImGui.BeginTable(ctx, "metrics", 4, flags) then return end
+  ImGui.TableSetupColumn(ctx, "", ImGui.TableColumnFlags_WidthFixed, 22)
   ImGui.TableSetupColumn(ctx, "Measurement", ImGui.TableColumnFlags_WidthStretch, 1.6)
   ImGui.TableSetupColumn(ctx, "Value", ImGui.TableColumnFlags_WidthStretch, 1.0)
   ImGui.TableSetupColumn(ctx, "Target", ImGui.TableColumnFlags_WidthStretch, 1.4)
@@ -365,11 +515,15 @@ local function draw_table(res, rows)
     checked[row.m] = true
     local d = core.METRIC_BY_KEY[row.m]
     ImGui.TableNextRow(ctx)
-    ImGui.TableNextColumn(ctx)
     local col = row.status == "pass" and COL_PASS or row.status == "fail" and COL_FAIL or COL_DIM
-    ImGui.TextColored(ctx, col, (row.status == "pass" and "OK  " or row.status == "fail" and "X   " or "-   ") .. (d and d.label or row.m))
     ImGui.TableNextColumn(ctx)
+    ImGui.TextColored(ctx, col, row.status == "pass" and "OK" or row.status == "fail" and "X" or "-")
+    ImGui.TableNextColumn(ctx)
+    ImGui.TextColored(ctx, col, d and d.label or row.m)
+    ImGui.TableNextColumn(ctx)
+    ImGui.PushFont(ctx, FONT_NUM)
     ImGui.TextColored(ctx, col, core.fmt_value(row.m, row.value) .. " " .. (d and d.unit or ""))
+    ImGui.PopFont(ctx)
     ImGui.TableNextColumn(ctx)
     if row.status == "skip" then
       ImGui.TextDisabled(ctx, core.target_text(row.check) .. " (n/a)")
@@ -382,9 +536,12 @@ local function draw_table(res, rows)
       if not checked[d.key] then
         ImGui.TableNextRow(ctx)
         ImGui.TableNextColumn(ctx)
-        ImGui.TextDisabled(ctx, "    " .. d.label)
         ImGui.TableNextColumn(ctx)
+        ImGui.TextDisabled(ctx, d.label)
+        ImGui.TableNextColumn(ctx)
+        ImGui.PushFont(ctx, FONT_NUM)
         ImGui.Text(ctx, core.fmt_value(d.key, res[d.key]) .. " " .. d.unit)
+        ImGui.PopFont(ctx)
         ImGui.TableNextColumn(ctx)
         local extra = value_extra(res, d.key)
         if d.key == "corrMin" and res.corrMinAt then
@@ -409,8 +566,10 @@ local function draw_platforms(res)
   for _, p in ipairs(pr) do
     ImGui.TableNextRow(ctx)
     ImGui.TableNextColumn(ctx); ImGui.Text(ctx, p.name)
+    ImGui.PushFont(ctx, FONT_NUM)
     ImGui.TableNextColumn(ctx); ImGui.TextDisabled(ctx, string.format("%d LUFS", p.target))
     ImGui.TableNextColumn(ctx); ImGui.Text(ctx, p.text)
+    ImGui.PopFont(ctx)
   end
   ImGui.EndTable(ctx)
 end
@@ -422,12 +581,14 @@ local function draw_clips(res)
     res.clipCount, res.clipCount == 1 and "" or "s", #ev, #ev == 1 and "" or "s"))
   local h = math.min(#ev, 6) * ImGui.GetTextLineHeightWithSpacing(ctx) + 8
   if ImGui.BeginChild(ctx, "clips", -1, h, ImGui.ChildFlags_Border) then
+    ImGui.PushFont(ctx, FONT_NUM)
     for i, e in ipairs(ev) do
       local t = (res.rangeStart or 0) + e.t
       local label = string.format("%-9s %+.2f dBFS   %d sample%s##c%d", core.fmt_time(t),
         20 * math.log(e.peak, 10), e.n, e.n == 1 and "" or "s", i)
       if ImGui.Selectable(ctx, label, false) then jump_to(t) end
     end
+    ImGui.PopFont(ctx)
     ImGui.EndChild(ctx)
   end
   if ImGui.Button(ctx, "Add clip markers") then add_clip_markers(res) end
@@ -500,6 +661,9 @@ local function loop()
     ImGui.SetNextWindowDockID(ctx, S.dock)
     S.dock = nil
   end
+  refresh_theme(false)
+  ImGui.PushFont(ctx, FONT_UI)
+  push_theme()
   ImGui.SetNextWindowSize(ctx, 460, 800, ImGui.Cond_FirstUseEver)
   local visible, open = ImGui.Begin(ctx, "Spec Check", true, ImGui.WindowFlags_NoCollapse)
   if visible then
@@ -514,6 +678,8 @@ local function loop()
     draw_editor()
     ImGui.End(ctx)
   end
+  pop_theme()
+  ImGui.PopFont(ctx)
   if open then reaper.defer(loop) end
 end
 

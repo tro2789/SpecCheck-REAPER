@@ -26,6 +26,10 @@ pass/fail scoreboard. REAPER sibling of the Premiere Spec Check panel.
   project marker per clip spot (undoable). **Save report...** writes a
   `.qc.txt`.
 - Right-click the window to dock it or clear results.
+- The window takes its colors from the active REAPER theme
+  (`col_main_bg2`, `col_main_text2`, `col_toolbar_text_on`) and re-reads
+  them every second, so theme switches carry over. Text is lightened or
+  darkened until it meets a contrast floor. Pass/fail stay green/red.
 
 Validated 2026-09-25 against ffmpeg `ebur128` on a 3:48 stereo track:
 LUFS-I, LRA, sample peak and true peak all match to the displayed
@@ -52,6 +56,7 @@ optional (used for the Save report dialog).
 
 `dev/` holds headless helpers for the REAPER MCP (`script_run`):
 `run_core.lua` (full check, stores a text report), `read_result.lua`,
-`syntax.lua`, `ui_autocheck.lua`. REAPER on this PC takes media offline
+`syntax.lua`, `ui_autocheck.lua`, `theme_probe.lua` (prints the active
+theme's colors). REAPER on this PC takes media offline
 while it is not the foreground app (`offlineinact=1`), so the dev scripts
 run "Item: Set all media online" first; otherwise the render is silent.

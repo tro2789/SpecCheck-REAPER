@@ -14,7 +14,7 @@
 --     peak, clips, RMS, correlation, DC, noise floor, head/tail silence).
 
 local M = {}
-M.VERSION = "0.1.0"
+M.VERSION = "0.2.0"
 
 local sunpack, srep, floor, sqrt, log = string.unpack, string.rep, math.floor, math.sqrt, math.log
 local NEG_INF = -math.huge
