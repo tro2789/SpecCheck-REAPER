@@ -40,6 +40,14 @@ ReaScript, then give it a toolbar button or shortcut.
 Needs ReaImGui 0.9.3+ (ReaPack, ReaTeam Extensions). js_ReaScriptAPI is
 optional (used for the Save report dialog).
 
+## Repo and versions
+
+- Source of truth: the private Gitea
+  (private, no GitHub mirror yet).
+- The version lives in two places, bump both together: the `@version`
+  header in `Spec Check.lua` (what ReaPack reads) and `M.VERSION` in
+  `speccheck_core.lua` (printed in reports). Tag releases `vX.Y.Z`.
+
 ## Dev
 
 `dev/` holds headless helpers for the REAPER MCP (`script_run`):
