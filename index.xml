@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<index version="1" name="Spec Check">
+  <category name="Mixing">
+    <reapack name="Spec Check.lua" type="script" desc="Spec Check: measure a mix against a delivery spec">
+      <version name="0.1.0" author="Trevor O'Hare Productions" time="2026-09-25T22:39:48Z">
+        <source file="Spec Check.lua" main="main" hash="1220e94e5373af773d4d9b383040d041dd9f7cdd13ebfd7719d4159f28c477fa9266">https://raw.githubusercontent.com/tro2789/SpecCheck-REAPER/v0.1.0/Spec%20Check.lua</source>
+        <source file="speccheck_core.lua" hash="122050eea1afae2b47d2b07de31f0c120f84cdbd92fd976a708da02fc4b57b089849">https://raw.githubusercontent.com/tro2789/SpecCheck-REAPER/v0.1.0/speccheck_core.lua</source>
+        <changelog><![CDATA[Initial release]]></changelog>
+      </version>
+      <version name="0.2.0" author="Trevor O'Hare Productions" time="2026-09-25T23:07:38Z">
+        <source file="Spec Check.lua" main="main" hash="12202ccdbdacbaf7546fc433ec395af9d74df285949647ac11ad93ff007729733f07">https://raw.githubusercontent.com/tro2789/SpecCheck-REAPER/v0.2.0/Spec%20Check.lua</source>
+        <source file="speccheck_core.lua" hash="1220a3364df62cd1296c7cec5915efc7b98e47af54787049fd32758bada3dc8a8c43">https://raw.githubusercontent.com/tro2789/SpecCheck-REAPER/v0.2.0/speccheck_core.lua</source>
+        <changelog><![CDATA[Window colors follow the active REAPER theme (and theme switches)
+Labels in a regular font, measured values in monospace]]></changelog>
+      </version>
+      <metadata>
+        <link rel="website">https://github.com/tro2789/SpecCheck-REAPER</link>
+      </metadata>
+    </reapack>
+  </category>
+  <metadata>
+    <link rel="website">https://github.com/tro2789/SpecCheck-REAPER</link>
+  </metadata>
+</index>

@@ -1,7 +1,29 @@
 # Spec Check for REAPER
 
-ReaImGui script: measure the master mix against a delivery spec and show a
-pass/fail scoreboard. REAPER sibling of the Premiere Spec Check panel.
+A REAPER script that measures your master mix against a delivery spec and
+shows a pass/fail scoreboard: loudness, true peak, clipping, loudness
+range, stereo correlation, noise floor and silence. REAPER sibling of the
+[Spec Check panel for Premiere Pro](https://github.com/tro2789/SpecCheck).
+
+## Install (ReaPack)
+
+1. Install [ReaPack](https://reapack.com) if you don't have it, and restart
+   REAPER.
+2. **Extensions > ReaPack > Browse packages**, search **ReaImGui**, install
+   it, and restart REAPER.
+3. **Extensions > ReaPack > Import repositories...**, paste this URL, and
+   click OK:
+
+   ```
+   https://raw.githubusercontent.com/tro2789/SpecCheck-REAPER/main/index.xml
+   ```
+4. **Extensions > ReaPack > Browse packages**, search **Spec Check**,
+   right-click it > Install, then Apply.
+5. Open the action list (**?**), search **Spec Check**, and run it. Add it
+   to a toolbar or give it a shortcut from there.
+
+ReaPack offers updates when new versions come out. Windows and macOS.
+js_ReaScriptAPI is optional (used for the Save report file dialog).
 
 ## How it works
 
@@ -9,7 +31,7 @@ pass/fail scoreboard. REAPER sibling of the Premiere Spec Check panel.
   region, or every region in turn) to a temp 32-bit float WAV. Your render
   settings are saved first and restored afterwards, including the project's
   modified flag. Render normalization, dither and tail are turned off for
-  the measurement.
+  the measurement, so your render dialog settings never change the result.
 - Loudness comes from REAPER's own `CalculateNormalization` (BS.1770):
   integrated LUFS, true peak, short-term and momentary max. Everything else
   comes from one Lua pass over the samples: loudness range (EBU Tech 3342),
@@ -20,43 +42,41 @@ pass/fail scoreboard. REAPER sibling of the Premiere Spec Check panel.
 - A preset is only a checklist over those metrics; switching presets
   re-scores instantly. Music presets check true peak and clipping;
   integrated loudness is shown as a per-platform playback change (Spotify,
-  Apple Music, YouTube, Tidal, Amazon). Spoken-word presets match the
-  Premiere Spec Check (bitrate check dropped: the render is WAV).
+  Apple Music, YouTube, Tidal, Amazon). Spoken-word presets cover ACX,
+  Audible Originals, Apple Podcasts, Spotify, EBU R128 and YouTube. The
+  **Edit...** button makes custom presets.
 - Clip list rows jump the edit cursor; **Add clip markers** drops one
   project marker per clip spot (undoable). **Save report...** writes a
   `.qc.txt`.
 - Right-click the window to dock it or clear results.
-- The window takes its colors from the active REAPER theme
-  (`col_main_bg2`, `col_main_text2`, `col_toolbar_text_on`) and re-reads
-  them every second, so theme switches carry over. Text is lightened or
-  darkened until it meets a contrast floor. Pass/fail stay green/red.
+- The window takes its colors from the active REAPER theme and follows
+  theme switches.
 
-Validated 2026-09-25 against ffmpeg `ebur128` on a 3:48 stereo track:
-LUFS-I, LRA, sample peak and true peak all match to the displayed
-precision. A 4-minute song takes about 4 s to render and 6 s to analyze.
+Measurements were checked against ffmpeg `ebur128` on a stereo song:
+integrated loudness, loudness range, sample peak and true peak match to
+the displayed precision. A 4-minute song takes about 10 s to check.
 
-## Install (this PC)
+## Repo and releases
 
-`%APPDATA%\REAPER\Scripts\SpecCheck` is a junction to this folder. Load
-`Spec Check.lua` once via Actions > Show action list > New action > Load
-ReaScript, then give it a toolbar button or shortcut.
-
-Needs ReaImGui 0.9.3+ (ReaPack, ReaTeam Extensions). js_ReaScriptAPI is
-optional (used for the Save report dialog).
-
-## Repo and versions
-
-- Source of truth: the private Gitea
-  (private, no GitHub mirror yet).
+- Source of truth is a private Gitea; this GitHub repo is a push mirror.
+  Don't push to GitHub directly.
 - The version lives in two places, bump both together: the `@version`
-  header in `Spec Check.lua` (what ReaPack reads) and `M.VERSION` in
-  `speccheck_core.lua` (printed in reports). Tag releases `vX.Y.Z`.
+  header (and `@changelog`) in `Spec Check.lua`, and `M.VERSION` in
+  `speccheck_core.lua`.
+- Release: commit, tag `vX.Y.Z`, run `python tools/make_index.py`, commit
+  `index.xml`, push with tags. ReaPack reads `index.xml` from `main`; each
+  version's files are pinned to its tag with SHA-256 hashes.
 
 ## Dev
 
-`dev/` holds headless helpers for the REAPER MCP (`script_run`):
-`run_core.lua` (full check, stores a text report), `read_result.lua`,
-`syntax.lua`, `ui_autocheck.lua`, `theme_probe.lua` (prints the active
-theme's colors). REAPER on this PC takes media offline
-while it is not the foreground app (`offlineinact=1`), so the dev scripts
-run "Item: Set all media online" first; otherwise the render is silent.
+`dev/` holds headless helpers driven through a REAPER MCP bridge
+(`script_run`): `run_core.lua` (full check, stores a text report),
+`read_result.lua`, `syntax.lua`, `ui_autocheck.lua`, `theme_probe.lua`.
+If REAPER is set to take media offline while in the background, renders
+started from outside are silent; the dev scripts run "Item: Set all media
+online" first for that reason. They are marked `@noindex` and are not part
+of the ReaPack package.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
