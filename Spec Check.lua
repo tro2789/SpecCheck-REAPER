@@ -13,6 +13,8 @@
 --   Requires ReaImGui.
 
 local here = debug.getinfo(1, "S").source:match("^@(.*[\\/])")
+-- Running from a git checkout (dev) rather than a ReaPack install.
+local IS_DEV = reaper.file_exists(here .. ".git/HEAD")
 local core = dofile(here .. "speccheck_core.lua")
 
 if not reaper.ImGui_GetBuiltinPath then
@@ -665,7 +667,8 @@ local function loop()
   ImGui.PushFont(ctx, FONT_UI)
   push_theme()
   ImGui.SetNextWindowSize(ctx, 460, 800, ImGui.Cond_FirstUseEver)
-  local visible, open = ImGui.Begin(ctx, "Spec Check", true, ImGui.WindowFlags_NoCollapse)
+  local visible, open = ImGui.Begin(ctx, IS_DEV and "Spec Check (dev)" or "Spec Check", true,
+    ImGui.WindowFlags_NoCollapse)
   if visible then
     draw_controls()
     ImGui.Spacing(ctx)
